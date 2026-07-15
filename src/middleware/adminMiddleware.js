@@ -6,4 +6,4 @@ const adminOnly = (req, res, next) =>{
     }
     next();
 };
-module.export = adminOnly;
+export default adminOnly; //ES module syntax

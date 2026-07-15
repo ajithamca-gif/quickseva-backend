@@ -21,7 +21,13 @@ export const sendOTP = async (req, res) => {
             });
         }
         const otp = generateOTP();
-        otpStore[phone] = otp;
+
+        //DB -upsert
+        await User.findOneAndUpdate(
+            {phone},
+            {phone, otp, otpExpiry: Date.now()+5*60*1000},
+            {upsert: true, new:true}
+        )
 
         //Later: Real SMS via Twilio/MSG91
         console.log(`OTP for ${phone}:${otp}`);
@@ -37,21 +43,17 @@ export const sendOTP = async (req, res) => {
 export const verifyOTP = async (req, res) => {
     try{
         const {phone, otp, name}=req.body;
+        const user = await User.findOne({phone});
 
-        if(otpStore[phone] !== otp){
+        if(!user || user.otp !== otp || user.otpExpiry < Date.now()){
             return res.status(400).json({message: "Invalid OTP"});
         }
 
-        //OTP correct-delete it
-        delete otpStore[phone];
+        user.otp = undefined;
+        user.otpExpiry = undefined;
+        if(name) user.name = name;
+        await user.save();
 
-        //User already exists?
-        let user = await User.findOne({phone});
-
-        if(!user){
-            //New user - create
-            user = await User.create({name: name || "User", phone});
-        }
 
         //JWT token generate
         const token = jwt.sign(
